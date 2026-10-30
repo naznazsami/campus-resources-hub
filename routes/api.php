@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CommentController;
 use App\Http\Controllers\StudyResourceController;
+use App\Http\Controllers\VoteController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -19,4 +21,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('resources', StudyResourceController::class);
     Route::get('/resources/{resource}/download', [StudyResourceController::class, 'download'])
         ->name('resources.download');
+
+    // One vote per user per resource, so "vote" is singular and has no id of its own.
+    Route::put('/resources/{resource}/vote', [VoteController::class, 'update'])->name('resources.vote.update');
+    Route::delete('/resources/{resource}/vote', [VoteController::class, 'destroy'])->name('resources.vote.destroy');
+
+    // shallow(): list/create are nested under the resource; edit/delete use /comments/{comment}.
+    Route::apiResource('resources.comments', CommentController::class)->shallow()->except('show');
 });

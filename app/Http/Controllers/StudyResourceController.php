@@ -8,8 +8,6 @@ use App\Http\Requests\UpdateStudyResourceRequest;
 use App\Http\Resources\StudyResourceResource;
 use App\Models\StudyResource;
 use App\Models\Tag;
-use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -29,13 +27,15 @@ class StudyResourceController extends Controller
     {
         $filters = $request->validated();
 
-        $resources = $this->queryWithDetails($request->user())
+        $resources = StudyResource::withDetails($request->user())
             ->when($filters['type'] ?? null, fn ($query, $type) => $query->where('type', $type))
             ->when($filters['tag'] ?? null, fn ($query, $tag) => $query->whereHas(
                 'tags', fn ($query) => $query->where('name', Str::lower($tag))
             ))
             ->when($filters['search'] ?? null, fn ($query, $search) => $query->where('title', 'like', "%{$search}%"))
-            ->when(($filters['sort'] ?? 'newest') === 'top', fn ($query) => $query->orderByDesc('score'))
+            // The project's one raw SQL exception: SUM() of no votes is NULL, which
+            // sorts below every number, so treat it as 0. Fixed text, no user input.
+            ->when(($filters['sort'] ?? 'newest') === 'top', fn ($query) => $query->orderByRaw('COALESCE(score, 0) DESC'))
             ->latest()
             ->orderByDesc('id')
             ->paginate(15)
@@ -73,14 +73,14 @@ class StudyResourceController extends Controller
             return $resource;
         });
 
-        return (new StudyResourceResource($this->findWithDetails($resource, $request->user())))
+        return (new StudyResourceResource(StudyResource::withDetails($request->user())->findOrFail($resource->id)))
             ->response()
             ->setStatusCode(201);
     }
 
     public function show(Request $request, StudyResource $resource): StudyResourceResource
     {
-        return new StudyResourceResource($this->findWithDetails($resource, $request->user()));
+        return new StudyResourceResource(StudyResource::withDetails($request->user())->findOrFail($resource->id));
     }
 
     /**
@@ -98,7 +98,7 @@ class StudyResourceController extends Controller
             }
         });
 
-        return new StudyResourceResource($this->findWithDetails($resource, $request->user()));
+        return new StudyResourceResource(StudyResource::withDetails($request->user())->findOrFail($resource->id));
     }
 
     public function destroy(StudyResource $resource): Response
@@ -120,24 +120,6 @@ class StudyResourceController extends Controller
 
         // Sent as an "attachment", so the browser saves the file instead of opening it.
         return Storage::disk('local')->download($resource->file_path, $resource->original_name);
-    }
-
-    /**
-     * Everything a resource response shows, loaded up front so the number of
-     * queries stays the same however many resources are listed (no N+1).
-     */
-    private function queryWithDetails(User $user): Builder
-    {
-        return StudyResource::query()
-            ->with(['user', 'tags'])
-            ->withSum('votes as score', 'value')
-            // The unique index allows one vote per user, so this sum is just "my vote".
-            ->withSum(['votes as my_vote' => fn ($query) => $query->where('user_id', $user->id)], 'value');
-    }
-
-    private function findWithDetails(StudyResource $resource, User $user): StudyResource
-    {
-        return $this->queryWithDetails($user)->findOrFail($resource->id);
     }
 
     /**

@@ -16,3 +16,10 @@ This is a 4th-year university project. I must be able to explain every line to m
 - No extra packages unless I approve them first.
 - Use `php artisan make:` commands rather than hand-writing boilerplate files.
 - After each change, list the files you touched and one sentence on why.
+
+
+## Scope
+- This is a REST API only. No frontend, no Blade views, no GUI.
+- Every endpoint returns JSON. Every request is tested in Apidog.
+- Do not create views, Blade templates, or anything in resources/views.
+- Keep the default welcome route; delete nothing else from the skeleton.

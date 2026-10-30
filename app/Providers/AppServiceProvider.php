@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +20,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Outside production, throw an error whenever a relationship is lazy
+        // loaded, so N+1 query problems are caught during development.
+        Model::preventLazyLoading(! $this->app->isProduction());
     }
 }
